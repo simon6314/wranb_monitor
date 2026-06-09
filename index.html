@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>水鏡 AquaLens | 台灣水庫即時水情與即時影像儀表板</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Main CSS -->
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  
+  <!-- Dashboard Grid Layout -->
+  <div class="dashboard-container">
+    
+    <!-- Sidebar / Brand Area -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo-icon">
+          <i data-lucide="droplet"></i>
+        </div>
+        <div class="brand-text">
+          <h1>水鏡 <span>AquaLens</span></h1>
+          <p>台灣水庫即時水情監控</p>
+        </div>
+      </div>
+      
+      <!-- Quick Stats Card -->
+      <div class="stats-panel">
+        <h2>水情概況</h2>
+        <div class="stat-item">
+          <div class="stat-icon normal"><i data-lucide="shield-check"></i></div>
+          <div class="stat-info">
+            <span class="stat-label">正常水庫</span>
+            <span class="stat-value" id="normal-count">--</span>
+          </div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-icon warning"><i data-lucide="alert-triangle"></i></div>
+          <div class="stat-info">
+            <span class="stat-label">水情緊張 (&lt;35%)</span>
+            <span class="stat-value" id="warning-count">--</span>
+          </div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-icon critical"><i data-lucide="droplet-off"></i></div>
+          <div class="stat-info">
+            <span class="stat-label">嚴重缺水 (&lt;15%)</span>
+            <span class="stat-value" id="critical-count">--</span>
+          </div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-icon avg"><i data-lucide="activity"></i></div>
+          <div class="stat-info">
+            <span class="stat-label">平均蓄水率</span>
+            <span class="stat-value" id="avg-storage">--%</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Info Footer -->
+      <footer class="sidebar-footer">
+        <p>資料來源：經濟部水利署</p>
+        <p>即時影像來源：交通部觀光署及各風景區管理處</p>
+        <p class="refresh-time">最後更新時間：<span id="refresh-time">--</span></p>
+        <button id="btn-refresh" class="btn-refresh">
+          <i data-lucide="refresh-cw"></i> 重新載入數據
+        </button>
+      </footer>
+    </aside>
+    
+    <!-- Main Panel -->
+    <main class="main-content">
+      
+      <!-- Top Header / Filter & Search -->
+      <header class="header">
+        <div class="search-box">
+          <i data-lucide="search"></i>
+          <input type="text" id="search-input" placeholder="搜尋水庫名稱、縣市或關鍵字...">
+        </div>
+        
+        <div class="region-filters">
+          <button class="filter-btn active" data-region="all">全部地區</button>
+          <button class="filter-btn" data-region="north">北部</button>
+          <button class="filter-btn" data-region="central">中部</button>
+          <button class="filter-btn" data-region="south">南部</button>
+          <button class="filter-btn" data-region="offshore">離島</button>
+        </div>
+      </header>
+      
+      <!-- Reservoirs Grid -->
+      <section class="grid-section">
+        <div id="reservoirs-grid" class="reservoirs-grid">
+          <!-- Dynamically populated cards go here -->
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>正在連線至水利署，獲取即時水情數據...</p>
+          </div>
+        </div>
+      </section>
+      
+    </main>
+  </div>
+  
+  <!-- Video and Detailed Stats Modal -->
+  <div id="info-modal" class="modal-overlay">
+    <div class="modal-container">
+      <button class="modal-close" id="modal-close-btn">
+        <i data-lucide="x"></i>
+      </button>
+      
+      <div class="modal-body">
+        
+        <!-- Left Side: Live Feed -->
+        <div class="modal-video-container">
+          <div class="video-header">
+            <span class="live-badge" id="modal-live-badge"><span class="pulse-dot"></span>LIVE</span>
+            <h3 id="modal-title">石門水庫 即時影像</h3>
+          </div>
+          
+          <div class="video-iframe-wrapper">
+            <!-- Live / CCTV Feed -->
+            <div class="video-panel active" id="panel-live">
+              <div class="video-iframe-wrapper-inner" id="video-wrapper">
+                <!-- Iframe or static placeholder goes here -->
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right Side: Detailed Dashboard -->
+        <div class="modal-details-panel">
+          <div class="details-header">
+            <span class="details-region" id="modal-region">北部</span>
+            <h2 id="modal-name">石門水庫</h2>
+            <p class="details-location"><i data-lucide="map-pin"></i> <span id="modal-location">桃園市龍潭區</span></p>
+          </div>
+          
+          <!-- Storage Meter -->
+          <div class="details-gauge-section">
+            <div class="gauge-card">
+              <div class="gauge-visual">
+                <!-- Large wave gauge -->
+                <div class="large-wave-gauge" id="modal-wave-gauge">
+                  <div class="water-fill" id="modal-water-fill"></div>
+                  <div class="percentage-text" id="modal-percentage">0%</div>
+                </div>
+              </div>
+              <div class="gauge-label">
+                <span class="lbl">當前蓄水率</span>
+                <span class="status-badge" id="modal-status-badge">正常</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Detailed Stats List -->
+          <div class="details-stats-grid">
+            <div class="detail-stat-card">
+              <span class="lbl">水位高度</span>
+              <span class="val" id="modal-water-level">-- m</span>
+            </div>
+            <div class="detail-stat-card">
+              <span class="lbl">有效容量</span>
+              <span class="val" id="modal-total-capacity">-- 萬 m³</span>
+            </div>
+            <div class="detail-stat-card">
+              <span class="lbl">當前蓄水量</span>
+              <span class="val" id="modal-current-storage">-- 萬 m³</span>
+            </div>
+            <div class="detail-stat-card">
+              <span class="lbl">集水區本日雨量</span>
+              <span class="val" id="modal-rainfall">-- mm</span>
+            </div>
+            <div class="detail-stat-card">
+              <span class="lbl">昨日進流量</span>
+              <span class="val" id="modal-inflow">-- cms</span>
+            </div>
+            <div class="detail-stat-card">
+              <span class="lbl">昨日出流量</span>
+              <span class="val" id="modal-outflow">-- cms</span>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="modal-actions">
+            <a href="#" id="modal-wra-link" target="_blank" class="action-btn primary-btn">
+              <i data-lucide="external-link"></i> 前往水利署防災監控畫面
+            </a>
+            <a href="#" id="modal-map-link" target="_blank" class="action-btn secondary-btn">
+              <i data-lucide="map"></i> Google 地圖定位
+            </a>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+  
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
