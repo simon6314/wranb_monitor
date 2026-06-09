@@ -1245,6 +1245,7 @@ body {
   }
   
   .cctv-cam-selector-bar {
+    position: absolute;
     top: auto;
     bottom: 1rem;
     right: auto;
@@ -1385,6 +1386,7 @@ body {
 
   /* Wrap CCTV buttons on small screens */
   .cctv-cam-selector-bar {
+    position: absolute;
     top: auto;
     bottom: 0.5rem;
     right: auto;
