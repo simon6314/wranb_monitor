@@ -115,11 +115,10 @@ const RESERVOIRS_METADATA = {
     region: "central",
     location: "南投縣魚池鄉",
     coordinates: "23.8583,120.9167",
-    youtubeChannelId: "UCeT-oF-m5GfR5F-3FvX6J6A", // 日月潭國家風景區
     cctvSourceId: "11",
-    cctvStationId: "106783",
-    cctvId: "106783",
-    cctvIds: ["106783"],
+    cctvStationId: "106818",
+    cctvId: "106818",
+    cctvIds: ["106818", "106783"],
     description: "兼具水力發電與國際級觀光價值的水庫，湖光山色世界聞名。",
     bgImage: "https://images.unsplash.com/photo-1527668752948-184e7745c6dd?w=800&auto=format&fit=crop"
   },
@@ -666,17 +665,56 @@ async function loadLiveFeed(item) {
       </div>
     `;
 
-    try {
-      const sourceId = item.cctvSourceId || "21";
-      const stationId = item.cctvStationId;
-      const response = await fetch(`https://fhyv.wra.gov.tw/FhyWeb/v1/Api/CCTV/WRA/Cameras/${sourceId}/${stationId}`);
-      if (!response.ok) throw new Error("CCTV API 載入失敗");
+    const sourceId = item.cctvSourceId || "21";
+    const stationIds = item.cctvIds && item.cctvIds.length > 0 ? item.cctvIds : [item.cctvStationId];
+    let activeCamIdx = 0;
+    let loopInterval = null;
 
-      const data = await response.json();
-      if (data && data.length > 0 && data[0].cameras && data[0].cameras.length > 0) {
-        const cameras = data[0].cameras;
+    // Helper to fetch and play a specific station
+    async function playCctvStation(stationId, camIdx) {
+      // Clear any previous interval before starting a new one
+      clearCctvInterval();
+      if (loopInterval) clearInterval(loopInterval);
+      
+      try {
+        const response = await fetch(`https://fhyv.wra.gov.tw/FhyWeb/v1/Api/CCTV/WRA/Cameras/${sourceId}/${stationId}`);
+        if (!response.ok) throw new Error("CCTV API 載入失敗");
+
+        const data = await response.json();
+        if (data && data.length > 0 && data[0].cameras && data[0].cameras.length > 0) {
+          const cam = data[0].cameras[0]; // Take the first camera of this station
+          const images = cam.images || [];
+          if (images.length > 0) {
+            videoWrapper.innerHTML = "";
+            const container = document.createElement("div");
+            container.className = "cctv-container";
+            const img = document.createElement("img");
+            img.className = "cctv-live-image";
+            container.appendChild(img);
+            videoWrapper.appendChild(container);
+
+            let frameIdx = 0;
+            img.src = images[0];
+            statusBar.innerHTML = `
+              <span class="cctv-badge">監控畫面 ${camIdx + 1}</span>
+              <span class="cctv-update-time">歷史影像輪巡中 (${images.length}幀)</span>
+            `;
+            loopInterval = setInterval(() => {
+              frameIdx = (frameIdx + 1) % images.length;
+              img.src = images[frameIdx];
+            }, 1000);
+            
+            // Expose active loop interval to the cleanup function
+            window.cctvRefreshInterval = { close: () => { if (loopInterval) clearInterval(loopInterval); } };
+          } else {
+            throw new Error("無影像資料");
+          }
+        } else {
+          throw new Error("找不到相機設定");
+        }
+      } catch (err) {
+        console.warn(`CCTV API failed for station ${stationId}, falling back to static image:`, err);
         videoWrapper.innerHTML = "";
-
         const container = document.createElement("div");
         container.className = "cctv-container";
         const img = document.createElement("img");
@@ -684,99 +722,38 @@ async function loadLiveFeed(item) {
         container.appendChild(img);
         videoWrapper.appendChild(container);
 
-        let activeCamIdx = 0;
-        let loopInterval = null;
-
-        // Camera selector in top bar
-        if (cameras.length > 1) {
-          cameras.forEach((cam, idx) => {
-            const btn = document.createElement("button");
-            btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
-            btn.innerHTML = `<span>畫面 </span>${idx + 1}`;
-            btn.addEventListener("click", () => {
-              selectorBar.querySelectorAll(".cctv-cam-btn").forEach((b, i) => b.classList.toggle("active", i === idx));
-              activeCamIdx = idx;
-              startLoop();
-            });
-            selectorBar.appendChild(btn);
-          });
-        }
-
-        function startLoop() {
-          if (loopInterval) clearInterval(loopInterval);
-          const cam = cameras[activeCamIdx];
-          const images = cam.images || [];
-          if (images.length > 0) {
-            let frameIdx = 0;
-            img.src = images[0];
-            statusBar.innerHTML = `
-              <span class="cctv-badge">監控畫面 ${activeCamIdx + 1}</span>
-              <span class="cctv-update-time">歷史影像輪巡中 (${images.length}幀)</span>
-            `;
-            loopInterval = setInterval(() => {
-              frameIdx = (frameIdx + 1) % images.length;
-              img.src = images[frameIdx];
-            }, 1000);
-          } else {
-            img.src = "";
-            statusBar.innerHTML = `<span class="cctv-badge">鏡頭 ${activeCamIdx + 1} 無影像資料</span>`;
-          }
-        }
-
-        window.cctvRefreshInterval = { close: () => { if (loopInterval) clearInterval(loopInterval); } };
-        startLoop();
-
-      } else {
-        throw new Error("找不到相機設定");
-      }
-    } catch (err) {
-      console.warn("CCTV API failed, falling back to static image:", err);
-      videoWrapper.innerHTML = "";
-
-      const container = document.createElement("div");
-      container.className = "cctv-container";
-      const img = document.createElement("img");
-      img.className = "cctv-live-image";
-      container.appendChild(img);
-      videoWrapper.appendChild(container);
-
-      const fallbackIds = item.cctvIds && item.cctvIds.length > 0 ? item.cctvIds : [item.cctvId || "6946"];
-      let activeCamIdx = 0;
-      let refreshInterval = null;
-
-      // Camera selector in top bar (fallback)
-      if (fallbackIds.length > 1) {
-        fallbackIds.forEach((id, idx) => {
-          const btn = document.createElement("button");
-          btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
-          btn.innerHTML = `<span>畫面 </span>${idx + 1}`;
-          btn.addEventListener("click", () => {
-            selectorBar.querySelectorAll(".cctv-cam-btn").forEach((b, i) => b.classList.toggle("active", i === idx));
-            activeCamIdx = idx;
-            startFallbackRefresh();
-          });
-          selectorBar.appendChild(btn);
-        });
-      }
-
-      function startFallbackRefresh() {
-        if (refreshInterval) clearInterval(refreshInterval);
-        const fallbackId = fallbackIds[activeCamIdx];
         const t = new Date().getTime();
-        img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${t}`;
+        img.src = `https://fmg.wra.gov.tw/singlefmg/new/${stationId}/newbig.jpg?t=${t}`;
         statusBar.innerHTML = `
-          <span class="cctv-badge">監控畫面 ${activeCamIdx + 1} (單張備援)</span>
+          <span class="cctv-badge">監控畫面 ${camIdx + 1} (單張備援)</span>
           <span class="cctv-update-time">畫面每10秒更新</span>
         `;
-        refreshInterval = setInterval(() => {
+        const refreshInterval = setInterval(() => {
           const newTime = new Date().getTime();
-          img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${newTime}`;
+          img.src = `https://fmg.wra.gov.tw/singlefmg/new/${stationId}/newbig.jpg?t=${newTime}`;
         }, 10000);
-      }
 
-      window.cctvRefreshInterval = { close: () => { if (refreshInterval) clearInterval(refreshInterval); } };
-      startFallbackRefresh();
+        window.cctvRefreshInterval = { close: () => { if (refreshInterval) clearInterval(refreshInterval); } };
+      }
     }
+
+    // Render selector bar buttons
+    if (stationIds.length > 1) {
+      stationIds.forEach((id, idx) => {
+        const btn = document.createElement("button");
+        btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
+        btn.innerHTML = `<span>畫面 </span>${idx + 1}`;
+        btn.addEventListener("click", () => {
+          selectorBar.querySelectorAll(".cctv-cam-btn").forEach((b, i) => b.classList.toggle("active", i === idx));
+          activeCamIdx = idx;
+          playCctvStation(stationIds[activeCamIdx], activeCamIdx);
+        });
+        selectorBar.appendChild(btn);
+      });
+    }
+
+    // Default play first station
+    playCctvStation(stationIds[0], 0);
 
   } else {
     if (liveBadge) liveBadge.style.display = "none";
