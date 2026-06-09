@@ -724,6 +724,12 @@ async function loadLiveFeed(item) {
   
   const selectorBar = $("#cctv-cam-selector-bar");
   if (selectorBar) selectorBar.innerHTML = "";
+  
+  const statusBar = $("#cctv-status-bar");
+  if (statusBar) statusBar.innerHTML = "";
+  
+  const liveBadge = $("#modal-live-badge");
+  if (liveBadge) liveBadge.style.display = "inline-flex";
 
   if (item.youtubeChannelId) {
     const iframe = document.createElement("iframe");
@@ -732,6 +738,9 @@ async function loadLiveFeed(item) {
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
     iframe.allowFullscreen = true;
     videoWrapper.appendChild(iframe);
+    
+    if (statusBar) statusBar.innerHTML = "";
+    if (liveBadge) liveBadge.style.display = "inline-flex";
   } else if (item.cctvStationId) {
     // Show loading spinner
     videoWrapper.innerHTML = `
@@ -755,11 +764,7 @@ async function loadLiveFeed(item) {
       const img = document.createElement("img");
       img.className = "cctv-live-image";
       
-      const overlay = document.createElement("div");
-      overlay.className = "cctv-overlay";
-      
       container.appendChild(img);
-      container.appendChild(overlay);
       videoWrapper.appendChild(container);
 
       const stationIds = item.cctvIds;
@@ -789,7 +794,10 @@ async function loadLiveFeed(item) {
         if (loopInterval) clearInterval(loopInterval);
         if (refreshInterval) clearInterval(refreshInterval);
         img.src = "";
-        overlay.innerHTML = `<span class="cctv-badge">正在載入畫面...</span>`;
+        
+        if (statusBar) {
+          statusBar.innerHTML = `<span class="cctv-badge">載入中...</span>`;
+        }
 
         const activeStationId = stationIds[activeStationIdx];
         try {
@@ -802,10 +810,19 @@ async function loadLiveFeed(item) {
             if (images.length > 0) {
               let frameIdx = 0;
               img.src = images[0];
-              overlay.innerHTML = `
-                <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeStationIdx + 1}</span>
-                <span class="cctv-update-time">歷史影像輪巡中 (${images.length}幀)</span>
-              `;
+              
+              if (statusBar) {
+                statusBar.innerHTML = `
+                  <span class="cctv-badge">
+                    <i data-lucide="video" style="width:12px;height:12px;margin-right:4px;"></i>
+                    監控畫面 ${activeStationIdx + 1}
+                  </span>
+                `;
+                lucide.createIcons();
+              }
+              
+              if (liveBadge) liveBadge.style.display = "inline-flex";
+
               loopInterval = setInterval(() => {
                 frameIdx = (frameIdx + 1) % images.length;
                 img.src = images[frameIdx];
@@ -818,10 +835,19 @@ async function loadLiveFeed(item) {
           console.warn("Live CCTV station failed, falling back to static:", err);
           const t = new Date().getTime();
           img.src = `https://fmg.wra.gov.tw/singlefmg/new/${activeStationId}/newbig.jpg?t=${t}`;
-          overlay.innerHTML = `
-            <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeStationIdx + 1} (單張備援)</span>
-            <span class="cctv-update-time">畫面每10秒更新</span>
-          `;
+          
+          if (statusBar) {
+            statusBar.innerHTML = `
+              <span class="cctv-badge">
+                <i data-lucide="video" style="width:12px;height:12px;margin-right:4px;"></i>
+                監控畫面 ${activeStationIdx + 1} (單張備援)
+              </span>
+            `;
+            lucide.createIcons();
+          }
+          
+          if (liveBadge) liveBadge.style.display = "inline-flex";
+
           refreshInterval = setInterval(() => {
             const newTime = new Date().getTime();
             img.src = `https://fmg.wra.gov.tw/singlefmg/new/${activeStationId}/newbig.jpg?t=${newTime}`;
@@ -855,11 +881,7 @@ async function loadLiveFeed(item) {
           const img = document.createElement("img");
           img.className = "cctv-live-image";
           
-          const overlay = document.createElement("div");
-          overlay.className = "cctv-overlay";
-          
           container.appendChild(img);
-          container.appendChild(overlay);
           videoWrapper.appendChild(container);
           
           let activeCamIdx = 0;
@@ -892,17 +914,28 @@ async function loadLiveFeed(item) {
             if (images.length > 0) {
               let frameIdx = 0;
               img.src = images[0];
-              overlay.innerHTML = `
-                <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeCamIdx + 1}</span>
-                <span class="cctv-update-time">歷史影像輪巡中 (${images.length}幀)</span>
-              `;
+              
+              if (statusBar) {
+                statusBar.innerHTML = `
+                  <span class="cctv-badge">
+                    <i data-lucide="video" style="width:12px;height:12px;margin-right:4px;"></i>
+                    監控畫面 ${activeCamIdx + 1}
+                  </span>
+                `;
+                lucide.createIcons();
+              }
+              
+              if (liveBadge) liveBadge.style.display = "inline-flex";
+
               loopInterval = setInterval(() => {
                 frameIdx = (frameIdx + 1) % images.length;
                 img.src = images[frameIdx];
               }, 1000);
             } else {
               img.src = "";
-              overlay.innerHTML = `<span class="cctv-badge">鏡頭 ${activeCamIdx + 1} 無影像資料</span>`;
+              if (statusBar) {
+                statusBar.innerHTML = `<span class="cctv-badge">鏡頭 ${activeCamIdx + 1} 無影像</span>`;
+              }
             }
           }
 
@@ -927,11 +960,7 @@ async function loadLiveFeed(item) {
         const img = document.createElement("img");
         img.className = "cctv-live-image";
         
-        const overlay = document.createElement("div");
-        overlay.className = "cctv-overlay";
-        
         container.appendChild(img);
-        container.appendChild(overlay);
         videoWrapper.appendChild(container);
         
         const fallbackIds = item.cctvIds && item.cctvIds.length > 0 ? item.cctvIds : [item.cctvId || "6946"];
@@ -964,11 +993,18 @@ async function loadLiveFeed(item) {
           const t = new Date().getTime();
           img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${t}`;
           
-          overlay.innerHTML = `
-            <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeCamIdx + 1} (單張備援)</span>
-            <span class="cctv-update-time">畫面每10秒更新</span>
-          `;
+          if (statusBar) {
+            statusBar.innerHTML = `
+              <span class="cctv-badge">
+                <i data-lucide="video" style="width:12px;height:12px;margin-right:4px;"></i>
+                監控畫面 ${activeCamIdx + 1} (單張備援)
+              </span>
+            `;
+            lucide.createIcons();
+          }
           
+          if (liveBadge) liveBadge.style.display = "inline-flex";
+
           refreshInterval = setInterval(() => {
             const newTime = new Date().getTime();
             img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${newTime}`;
