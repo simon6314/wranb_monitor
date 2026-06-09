@@ -1244,10 +1244,25 @@ body {
     aspect-ratio: 16/9;
   }
   
+  .video-top-bar {
+    height: 3rem;
+    padding: 0;
+  }
+
+  .video-top-bar-left {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+
+  #modal-title {
+    font-size: 0.85rem;
+  }
+
   .cctv-cam-selector-bar {
     position: absolute;
-    top: auto;
-    bottom: 1rem;
+    top: 0.75rem;
+    bottom: auto;
     right: auto;
     left: 50%;
     transform: translateX(-50%);
@@ -1258,6 +1273,13 @@ body {
   .cctv-cam-btn {
     padding: 0.35rem 0.65rem;
     font-size: 0.75rem;
+  }
+
+  .modal-close {
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 32px;
+    height: 32px;
   }
   
   .modal-details-panel {
@@ -1385,10 +1407,25 @@ body {
   }
 
   /* Wrap CCTV buttons on small screens */
+  .video-top-bar {
+    height: 2.25rem;
+    padding: 0;
+  }
+
+  .video-top-bar-left {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+  }
+
+  #modal-title {
+    font-size: 0.75rem;
+  }
+
   .cctv-cam-selector-bar {
     position: absolute;
-    top: auto;
-    bottom: 0.5rem;
+    top: 0.5rem;
+    bottom: auto;
     right: auto;
     left: 50%;
     transform: translateX(-50%);
@@ -1397,8 +1434,15 @@ body {
   }
 
   .cctv-cam-btn {
-    padding: 0.25rem 0.55rem;
-    font-size: 0.7rem;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.65rem;
+  }
+
+  .modal-close {
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 28px;
+    height: 28px;
   }
 
   #modal-live-badge {
