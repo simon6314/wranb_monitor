@@ -585,7 +585,7 @@ async function loadLiveFeed(item) {
           cameras.forEach((cam, idx) => {
             const btn = document.createElement("button");
             btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
-            btn.innerText = `畫面 ${idx + 1}`;
+            btn.innerHTML = `<span>畫面 </span>${idx + 1}`;
             btn.addEventListener("click", () => {
               selectorBar.querySelectorAll(".cctv-cam-btn").forEach((b, i) => b.classList.toggle("active", i === idx));
               activeCamIdx = idx;
@@ -642,7 +642,7 @@ async function loadLiveFeed(item) {
         fallbackIds.forEach((id, idx) => {
           const btn = document.createElement("button");
           btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
-          btn.innerText = `畫面 ${idx + 1}`;
+          btn.innerHTML = `<span>畫面 </span>${idx + 1}`;
           btn.addEventListener("click", () => {
             selectorBar.querySelectorAll(".cctv-cam-btn").forEach((b, i) => b.classList.toggle("active", i === idx));
             activeCamIdx = idx;

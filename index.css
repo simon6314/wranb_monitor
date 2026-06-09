@@ -1268,11 +1268,32 @@ body {
     transform: translateX(-50%);
     box-shadow: 0 4px 25px rgba(0, 0, 0, 0.6);
     z-index: 30;
+    max-width: calc(100% - 130px);
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    padding: 0.1rem;
+    display: flex;
+    gap: 0.35rem;
+  }
+  
+  .cctv-cam-selector-bar::-webkit-scrollbar {
+    display: none;
   }
   
   .cctv-cam-btn {
-    padding: 0.35rem 0.65rem;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.5rem;
     font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+  }
+
+  .cctv-cam-btn span {
+    display: none;
   }
 
   .modal-close {
@@ -1431,11 +1452,28 @@ body {
     transform: translateX(-50%);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     z-index: 30;
+    max-width: calc(100% - 110px);
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    padding: 0.1rem;
+    display: flex;
+    gap: 0.25rem;
+  }
+  
+  .cctv-cam-selector-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .cctv-cam-btn {
-    padding: 0.2rem 0.45rem;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 0.4rem;
     font-size: 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
   }
 
   .modal-close {
@@ -1571,6 +1609,11 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.cctv-cam-btn span {
+  display: inline;
 }
 
 .cctv-cam-btn:hover {
