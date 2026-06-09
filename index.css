@@ -1665,3 +1665,144 @@ body {
   font-weight: 600;
   vertical-align: middle;
 }
+
+/* ==========================================================================
+   Favorites Feature Styles
+   ========================================================================== */
+.card-top-left {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.btn-favorite {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  margin-top: -2px;
+  margin-right: -2px;
+}
+
+.btn-favorite:hover {
+  color: #ffc107;
+  background: rgba(255, 193, 7, 0.08);
+  transform: scale(1.15);
+}
+
+.btn-favorite i {
+  width: 18px;
+  height: 18px;
+  transition: all 0.25s ease;
+}
+
+.btn-favorite i.fav-active {
+  color: #ffc107;
+  fill: #ffc107;
+  filter: drop-shadow(0 0 5px rgba(255, 193, 7, 0.5));
+}
+
+.reservoir-card.is-favorite {
+  border-color: rgba(255, 193, 7, 0.22);
+  box-shadow: 0 0 15px rgba(255, 193, 7, 0.04), var(--glass-glow);
+}
+
+.reservoir-card.is-favorite::before {
+  background: linear-gradient(90deg, #ffc107, hsl(var(--primary)));
+  opacity: 0.85;
+}
+
+/* ==========================================================================
+   Favorites Quick Bar Styles
+   ========================================================================== */
+.favorites-quick-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1.25rem;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.4s ease;
+  width: 100%;
+}
+
+.favorites-quick-bar.hidden {
+  display: none !important;
+}
+
+.quick-bar-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #ffc107;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.quick-bar-label i {
+  width: 14px;
+  height: 14px;
+  fill: #ffc107;
+}
+
+.quick-bar-items {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0.1rem 0;
+  width: 100%;
+}
+
+.quick-bar-items::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.quick-chip:hover {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.35);
+  color: #ffc107;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.1);
+}
+
+.quick-chip:active {
+  transform: scale(0.97);
+}
+
+.quick-chip .chip-pct {
+  font-size: 0.7rem;
+  opacity: 0.7;
+  font-family: 'Outfit', sans-serif;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}
+
+

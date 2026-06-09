@@ -222,6 +222,83 @@ let activeRegionFilter = "all";
 let searchKeyword = "";
 let activeReservoirId = null;
 
+// Favorites Feature State and Helpers
+let favoriteReservoirs = JSON.parse(localStorage.getItem("aqualens_favorites") || "[]");
+
+function isFavorite(id) {
+  return favoriteReservoirs.includes(id);
+}
+
+function sortReservoirsData() {
+  globalReservoirsData.sort((a, b) => {
+    // 1. Favorites come first
+    const favA = isFavorite(a.id) ? 1 : 0;
+    const favB = isFavorite(b.id) ? 1 : 0;
+    if (favA !== favB) return favB - favA;
+
+    // 2. Latitude descending (North to South)
+    const latA = a.coordinates ? parseFloat(a.coordinates.split(',')[0]) : 0;
+    const latB = b.coordinates ? parseFloat(b.coordinates.split(',')[0]) : 0;
+    return latB - latA;
+  });
+}
+
+window.toggleFavorite = function(event, id) {
+  event.stopPropagation(); // Stop click from bubbling to card and opening the modal
+  
+  const index = favoriteReservoirs.indexOf(id);
+  if (index > -1) {
+    favoriteReservoirs.splice(index, 1);
+  } else {
+    favoriteReservoirs.push(id);
+  }
+  
+  localStorage.setItem("aqualens_favorites", JSON.stringify(favoriteReservoirs));
+  
+  // Re-sort global data and re-render grid
+  sortReservoirsData();
+  renderReservoirsGrid();
+};
+
+function renderFavoritesQuickBar() {
+  const quickBar = $("#favorites-quick-bar");
+  const quickBarItems = $("#quick-bar-items");
+  if (!quickBar || !quickBarItems) return;
+  
+  if (favoriteReservoirs.length === 0) {
+    quickBar.classList.add("hidden");
+    return;
+  }
+  
+  quickBar.classList.remove("hidden");
+  quickBarItems.innerHTML = "";
+  
+  // Find all favorite items in globalReservoirsData (maintaining sort order)
+  const favorites = globalReservoirsData.filter(item => isFavorite(item.id));
+  
+  favorites.forEach(item => {
+    const chip = document.createElement("button");
+    chip.className = "quick-chip";
+    const isFlood = item.isFloodFacility === true;
+    const pctText = isFlood ? "分洪" : `${item.percentage.toFixed(1)}%`;
+    
+    chip.innerHTML = `
+      <i data-lucide="star" style="width: 12px; height: 12px; fill: #ffc107; color: #ffc107;"></i>
+      <span>${item.name}</span>
+      <span class="chip-pct">${pctText}</span>
+    `;
+    
+    chip.addEventListener("click", () => {
+      openDetailsModal(item.id, true);
+    });
+    
+    quickBarItems.appendChild(chip);
+  });
+  
+  // Re-initialize Lucide icons
+  lucide.createIcons();
+}
+
 // Element Selector Helper
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
@@ -383,15 +460,9 @@ async function loadDashboardData() {
       });
     });
     
-    // Sort reservoirs from North to South (using latitude descending)
-    combined.sort((a, b) => {
-      const latA = a.coordinates ? parseFloat(a.coordinates.split(',')[0]) : 0;
-      const latB = b.coordinates ? parseFloat(b.coordinates.split(',')[0]) : 0;
-      return latB - latA; // Higher latitude (North) comes first
-    });
-    
-    // Save to state
+    // Save to state and sort (Favorites first, then North to South)
     globalReservoirsData = combined;
+    sortReservoirsData();
     
     // Update Stats Summary
     updateStatsSummary();
@@ -459,6 +530,7 @@ function getStatusLabel(percentage) {
 
 // Render grid cards
 function renderReservoirsGrid() {
+  renderFavoritesQuickBar();
   const grid = $("#reservoirs-grid");
   grid.innerHTML = "";
   
@@ -491,9 +563,17 @@ function renderReservoirsGrid() {
     const statusType = isFlood ? "flood" : getStatusType(item.percentage);
     const statusLabel = isFlood ? "防洪設施" : getStatusLabel(item.percentage);
     const hasLiveCam = item.youtubeChannelId !== "" || item.cctvStationId !== "" || item.cctvId !== "";
+    const isFav = isFavorite(item.id);
     
     const card = document.createElement("div");
-    card.className = "reservoir-card" + (isFlood ? " flood-facility-card" : "");
+    card.className = "reservoir-card" + (isFlood ? " flood-facility-card" : "") + (isFav ? " is-favorite" : "");
+    card.style.cursor = "pointer";
+    card.addEventListener("click", (e) => {
+      if (e.target.closest('.btn-favorite') || e.target.closest('.card-footer')) {
+        return;
+      }
+      openDetailsModal(item.id, true);
+    });
     
     const gaugeHTML = isFlood
       ? `<div class="wave-gauge-container" data-status="flood">
@@ -576,8 +656,13 @@ function renderReservoirsGrid() {
     card.innerHTML = `
       <div class="card-header">
         <div class="card-top">
-          <span class="region-tag">${getRegionChineseName(item.region)}</span>
-          <span class="state-badge ${statusType}">${statusLabel}</span>
+          <div class="card-top-left">
+            <span class="region-tag">${getRegionChineseName(item.region)}</span>
+            <span class="state-badge ${statusType}">${statusLabel}</span>
+          </div>
+          <button class="btn-favorite" onclick="toggleFavorite(event, '${item.id}')" title="${isFav ? '取消最愛' : '加入最愛'}">
+            <i data-lucide="star" class="${isFav ? 'fav-active' : ''}"></i>
+          </button>
         </div>
         <div class="card-header-info">
           <h3 class="reservoir-name">${item.name}</h3>
@@ -600,10 +685,10 @@ function renderReservoirsGrid() {
         </button>` : ''}
       </div>
     `;
-
+    
     grid.appendChild(card);
   });
-
+  
   // Re-initialize Lucide icons
   lucide.createIcons();
 }
@@ -635,129 +720,178 @@ function clearCctvInterval() {
 async function loadLiveFeed(item) {
   const videoWrapper = $("#video-wrapper");
   videoWrapper.innerHTML = "";
-
-  // Clear top-bar selector and bottom status bar
-  const selectorBar = $("#cctv-cam-selector-bar");
-  const statusBar = $("#cctv-status-bar");
-  const liveBadge = $("#modal-live-badge");
-  selectorBar.innerHTML = "";
-  statusBar.innerHTML = "";
-
+  
   clearCctvInterval();
-
+  
   if (item.youtubeChannelId) {
-    if (liveBadge) liveBadge.style.display = "flex";
-
     const iframe = document.createElement("iframe");
     iframe.src = `https://www.youtube-nocookie.com/embed/live_stream?channel=${item.youtubeChannelId}&autoplay=1&mute=1`;
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
     iframe.allowFullscreen = true;
     videoWrapper.appendChild(iframe);
-
   } else if (item.cctvStationId) {
-    if (liveBadge) liveBadge.style.display = "flex";
-
+    // Show loading spinner
     videoWrapper.innerHTML = `
       <div class="cctv-loading">
         <div class="spinner"></div>
         <p>正在載入歷史影像輪巡...</p>
       </div>
     `;
-
-    const sourceId = item.cctvSourceId || "21";
-    const stationIds = item.cctvIds && item.cctvIds.length > 0 ? item.cctvIds : [item.cctvStationId];
-    let activeCamIdx = 0;
-    let loopInterval = null;
-
-    // Helper to fetch and play a specific station
-    async function playCctvStation(stationId, camIdx) {
-      // Clear any previous interval before starting a new one
-      clearCctvInterval();
-      if (loopInterval) clearInterval(loopInterval);
+    
+    try {
+      const sourceId = item.cctvSourceId || "21";
+      const stationId = item.cctvStationId;
+      const response = await fetch(`https://fhyv.wra.gov.tw/FhyWeb/v1/Api/CCTV/WRA/Cameras/${sourceId}/${stationId}`);
+      if (!response.ok) throw new Error("CCTV API 載入失敗");
       
-      try {
-        const response = await fetch(`https://fhyv.wra.gov.tw/FhyWeb/v1/Api/CCTV/WRA/Cameras/${sourceId}/${stationId}`);
-        if (!response.ok) throw new Error("CCTV API 載入失敗");
-
-        const data = await response.json();
-        if (data && data.length > 0 && data[0].cameras && data[0].cameras.length > 0) {
-          const cam = data[0].cameras[0]; // Take the first camera of this station
+      const data = await response.json();
+      if (data && data.length > 0 && data[0].cameras && data[0].cameras.length > 0) {
+        const cameras = data[0].cameras;
+        videoWrapper.innerHTML = "";
+        
+        // Create CCTV container
+        const container = document.createElement("div");
+        container.className = "cctv-container";
+        
+        const img = document.createElement("img");
+        img.className = "cctv-live-image";
+        
+        const overlay = document.createElement("div");
+        overlay.className = "cctv-overlay";
+        
+        container.appendChild(img);
+        container.appendChild(overlay);
+        videoWrapper.appendChild(container);
+        
+        let activeCamIdx = 0;
+        let loopInterval = null;
+        
+        // Render Camera Selector if multiple cameras exist
+        if (cameras.length > 1) {
+          const selector = document.createElement("div");
+          selector.className = "cctv-camera-selector";
+          
+          cameras.forEach((cam, idx) => {
+            const btn = document.createElement("button");
+            btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
+            btn.innerText = `畫面 ${idx + 1}`;
+            btn.addEventListener("click", () => {
+              selector.querySelectorAll(".cctv-cam-btn").forEach((b, i) => {
+                b.classList.toggle("active", i === idx);
+              });
+              activeCamIdx = idx;
+              startLoop();
+            });
+            selector.appendChild(btn);
+          });
+          container.appendChild(selector);
+        }
+        
+        function startLoop() {
+          if (loopInterval) clearInterval(loopInterval);
+          const cam = cameras[activeCamIdx];
           const images = cam.images || [];
+          
           if (images.length > 0) {
-            videoWrapper.innerHTML = "";
-            const container = document.createElement("div");
-            container.className = "cctv-container";
-            const img = document.createElement("img");
-            img.className = "cctv-live-image";
-            container.appendChild(img);
-            videoWrapper.appendChild(container);
-
             let frameIdx = 0;
             img.src = images[0];
-            statusBar.innerHTML = `
-              <span class="cctv-badge">監控畫面 ${camIdx + 1}</span>
+            
+            overlay.innerHTML = `
+              <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeCamIdx + 1}</span>
               <span class="cctv-update-time">歷史影像輪巡中 (${images.length}幀)</span>
             `;
+            
             loopInterval = setInterval(() => {
               frameIdx = (frameIdx + 1) % images.length;
               img.src = images[frameIdx];
-            }, 1000);
-            
-            // Expose active loop interval to the cleanup function
-            window.cctvRefreshInterval = { close: () => { if (loopInterval) clearInterval(loopInterval); } };
+            }, 1000); // 1000ms loop
           } else {
-            throw new Error("無影像資料");
+            img.src = "";
+            overlay.innerHTML = `<span class="cctv-badge">鏡頭 ${activeCamIdx + 1} 無影像資料</span>`;
           }
-        } else {
-          throw new Error("找不到相機設定");
         }
-      } catch (err) {
-        console.warn(`CCTV API failed for station ${stationId}, falling back to static image:`, err);
-        videoWrapper.innerHTML = "";
-        const container = document.createElement("div");
-        container.className = "cctv-container";
-        const img = document.createElement("img");
-        img.className = "cctv-live-image";
-        container.appendChild(img);
-        videoWrapper.appendChild(container);
-
+        
+        window.cctvRefreshInterval = {
+          close: () => {
+            if (loopInterval) clearInterval(loopInterval);
+          }
+        };
+        
+        startLoop();
+        
+      } else {
+        throw new Error("找不到相機設定");
+      }
+    } catch (err) {
+      console.warn("CORS fetch failed or CCTV empty, falling back to static image:", err);
+      // Fallback to single static newbig.jpg image
+      videoWrapper.innerHTML = "";
+      
+      const container = document.createElement("div");
+      container.className = "cctv-container";
+      
+      const img = document.createElement("img");
+      img.className = "cctv-live-image";
+      
+      const overlay = document.createElement("div");
+      overlay.className = "cctv-overlay";
+      
+      container.appendChild(img);
+      container.appendChild(overlay);
+      videoWrapper.appendChild(container);
+      
+      const fallbackIds = item.cctvIds && item.cctvIds.length > 0 ? item.cctvIds : [item.cctvId || "6946"];
+      let activeCamIdx = 0;
+      let refreshInterval = null;
+      
+      // Render Fallback Camera Selector if multiple fallback IDs
+      if (fallbackIds.length > 1) {
+        const selector = document.createElement("div");
+        selector.className = "cctv-camera-selector";
+        
+        fallbackIds.forEach((id, idx) => {
+          const btn = document.createElement("button");
+          btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
+          btn.innerText = `畫面 ${idx + 1}`;
+          btn.addEventListener("click", () => {
+            selector.querySelectorAll(".cctv-cam-btn").forEach((b, i) => {
+              b.classList.toggle("active", i === idx);
+            });
+            activeCamIdx = idx;
+            startFallbackRefresh();
+          });
+          selector.appendChild(btn);
+        });
+        container.appendChild(selector);
+      }
+      
+      function startFallbackRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        const fallbackId = fallbackIds[activeCamIdx];
         const t = new Date().getTime();
-        img.src = `https://fmg.wra.gov.tw/singlefmg/new/${stationId}/newbig.jpg?t=${t}`;
-        statusBar.innerHTML = `
-          <span class="cctv-badge">監控畫面 ${camIdx + 1} (單張備援)</span>
+        img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${t}`;
+        
+        overlay.innerHTML = `
+          <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeCamIdx + 1} (單張備援)</span>
           <span class="cctv-update-time">畫面每10秒更新</span>
         `;
-        const refreshInterval = setInterval(() => {
+        
+        refreshInterval = setInterval(() => {
           const newTime = new Date().getTime();
-          img.src = `https://fmg.wra.gov.tw/singlefmg/new/${stationId}/newbig.jpg?t=${newTime}`;
+          img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${newTime}`;
         }, 10000);
-
-        window.cctvRefreshInterval = { close: () => { if (refreshInterval) clearInterval(refreshInterval); } };
       }
+      
+      window.cctvRefreshInterval = {
+        close: () => {
+          if (refreshInterval) clearInterval(refreshInterval);
+        }
+      };
+      
+      startFallbackRefresh();
     }
-
-    // Render selector bar buttons
-    if (stationIds.length > 1) {
-      stationIds.forEach((id, idx) => {
-        const btn = document.createElement("button");
-        btn.className = `cctv-cam-btn ${idx === 0 ? 'active' : ''}`;
-        btn.innerHTML = `<span>畫面 </span>${idx + 1}`;
-        btn.addEventListener("click", () => {
-          selectorBar.querySelectorAll(".cctv-cam-btn").forEach((b, i) => b.classList.toggle("active", i === idx));
-          activeCamIdx = idx;
-          playCctvStation(stationIds[activeCamIdx], activeCamIdx);
-        });
-        selectorBar.appendChild(btn);
-      });
-    }
-
-    // Default play first station
-    playCctvStation(stationIds[0], 0);
-
   } else {
-    if (liveBadge) liveBadge.style.display = "none";
-
     const placeholder = document.createElement("div");
     placeholder.className = "stream-placeholder";
     placeholder.style.backgroundImage = `url('${item.bgImage}')`;
@@ -772,6 +906,7 @@ async function loadLiveFeed(item) {
     lucide.createIcons();
   }
 }
+
 // Modal Controllers
 window.openDetailsModal = function(reservoirId, focusVideo = false) {
   const item = globalReservoirsData.find(r => r.id === reservoirId);
@@ -791,46 +926,46 @@ window.openDetailsModal = function(reservoirId, focusVideo = false) {
   $("#modal-location").innerText = item.location;
   $("#modal-percentage").innerText = isFlood ? "分洪道" : `${item.percentage.toFixed(1)}%`;
 
-  // Water level height with calibrated diff pill
+  // Water Level with diff pill
   if (item.waterLevel != null) {
-    let html = `${item.waterLevel.toFixed(2)} m`;
+    let wlText = `${item.waterLevel.toFixed(2)} m`;
     if (item.waterLevelDiff !== null) {
       const isUp = item.waterLevelDiff > 0;
       const isDown = item.waterLevelDiff < 0;
-      const diffClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
-      const diffArrow = isUp ? '▲' : (isDown ? '▼' : '-');
-      const diffVal = Math.abs(item.waterLevelDiff).toFixed(2);
-      html += ` <span class="modal-diff-pill ${diffClass}">${diffArrow} ${diffVal} m</span>`;
+      const pillClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
+      const pillArrow = isUp ? '▲' : (isDown ? '▼' : '-');
+      wlText += ` <span class="modal-diff-pill ${pillClass}">${pillArrow} ${Math.abs(item.waterLevelDiff).toFixed(2)} m</span>`;
     }
-    $("#modal-water-level").innerHTML = html;
+    $("#modal-water-level").innerHTML = wlText;
   } else {
-    $("#modal-water-level").innerHTML = "N/A";
+    $("#modal-water-level").innerText = "N/A";
   }
 
   $("#modal-total-capacity").innerText = item.totalCapacity != null ? `${item.totalCapacity.toFixed(1)} 萬 m³` : "N/A";
 
-  // Current storage with volume and percentage diff pill
+  // Current Storage with diff pill
   if (item.currentStorage != null) {
-    let html = `${item.currentStorage.toFixed(1)} 萬 m³`;
+    let csText = `${item.currentStorage.toFixed(1)} 萬 m³`;
     if (item.storageDiff !== null || item.percentageDiff !== null) {
       const isUp = item.storageDiff > 0 || item.percentageDiff > 0;
       const isDown = item.storageDiff < 0 || item.percentageDiff < 0;
-      const diffClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
-      const diffArrow = isUp ? '▲' : (isDown ? '▼' : '-');
+      const pillClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
+      const pillArrow = isUp ? '▲' : (isDown ? '▼' : '-');
       
-      const sVal = item.storageDiff !== null ? `${Math.abs(item.storageDiff).toFixed(1)} 萬 m³` : '';
-      const pVal = item.percentageDiff !== null ? `${item.percentageDiff > 0 ? '+' : ''}${item.percentageDiff.toFixed(1)}%` : '';
-      
-      let pillText = `${diffArrow} ${sVal}`;
-      if (pVal) {
-        pillText += ` (${pVal})`;
+      const pDiffText = item.percentageDiff !== null ? `${item.percentageDiff > 0 ? '+' : ''}${item.percentageDiff.toFixed(1)}%` : '';
+      const sDiffText = item.storageDiff !== null ? `${item.storageDiff > 0 ? '+' : ''}${item.storageDiff.toFixed(1)} 萬 m³` : '';
+      let diffDetails = "";
+      if (pDiffText && sDiffText) {
+        diffDetails = `${pDiffText} | ${sDiffText}`;
+      } else {
+        diffDetails = pDiffText || sDiffText;
       }
       
-      html += ` <span class="modal-diff-pill ${diffClass}">${pillText}</span>`;
+      csText += ` <span class="modal-diff-pill ${pillClass}">${pillArrow} ${diffDetails}</span>`;
     }
-    $("#modal-current-storage").innerHTML = html;
+    $("#modal-current-storage").innerHTML = csText;
   } else {
-    $("#modal-current-storage").innerHTML = "N/A";
+    $("#modal-current-storage").innerText = "N/A";
   }
   $("#modal-rainfall").innerText = item.rainfall  != null && item.rainfall  > 0 ? `${item.rainfall.toFixed(1)} mm`   : (item.rainfall  != null ? "0 mm"  : "N/A");
   $("#modal-inflow").innerText   = item.inflow    != null && item.inflow    > 0 ? `${item.inflow.toFixed(2)} cms`    : (item.inflow    != null ? "0 cms" : "N/A");
