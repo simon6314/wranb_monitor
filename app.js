@@ -533,12 +533,15 @@ async function loadLiveFeed(item) {
   // Clear top-bar selector and bottom status bar
   const selectorBar = $("#cctv-cam-selector-bar");
   const statusBar = $("#cctv-status-bar");
+  const liveBadge = $("#modal-live-badge");
   selectorBar.innerHTML = "";
   statusBar.innerHTML = "";
 
   clearCctvInterval();
 
   if (item.youtubeChannelId) {
+    if (liveBadge) liveBadge.style.display = "flex";
+
     const iframe = document.createElement("iframe");
     iframe.src = `https://www.youtube-nocookie.com/embed/live_stream?channel=${item.youtubeChannelId}&autoplay=1&mute=1`;
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
@@ -547,6 +550,8 @@ async function loadLiveFeed(item) {
     videoWrapper.appendChild(iframe);
 
   } else if (item.cctvStationId) {
+    if (liveBadge) liveBadge.style.display = "flex";
+
     videoWrapper.innerHTML = `
       <div class="cctv-loading">
         <div class="spinner"></div>
@@ -598,7 +603,7 @@ async function loadLiveFeed(item) {
             let frameIdx = 0;
             img.src = images[0];
             statusBar.innerHTML = `
-              <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeCamIdx + 1}</span>
+              <span class="cctv-badge">監控畫面 ${activeCamIdx + 1}</span>
               <span class="cctv-update-time">歷史影像輪巡中 (${images.length}幀)</span>
             `;
             loopInterval = setInterval(() => {
@@ -653,7 +658,7 @@ async function loadLiveFeed(item) {
         const t = new Date().getTime();
         img.src = `https://fmg.wra.gov.tw/singlefmg/new/${fallbackId}/newbig.jpg?t=${t}`;
         statusBar.innerHTML = `
-          <span class="cctv-badge"><span class="pulse-dot"></span>LIVE | 監控畫面 ${activeCamIdx + 1} (單張備援)</span>
+          <span class="cctv-badge">監控畫面 ${activeCamIdx + 1} (單張備援)</span>
           <span class="cctv-update-time">畫面每10秒更新</span>
         `;
         refreshInterval = setInterval(() => {
@@ -667,6 +672,8 @@ async function loadLiveFeed(item) {
     }
 
   } else {
+    if (liveBadge) liveBadge.style.display = "none";
+
     const placeholder = document.createElement("div");
     placeholder.className = "stream-placeholder";
     placeholder.style.backgroundImage = `url('${item.bgImage}')`;
