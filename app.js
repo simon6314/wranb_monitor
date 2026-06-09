@@ -283,7 +283,7 @@ function renderFavoritesQuickBar() {
     const pctText = isFlood ? "分洪" : `${item.percentage.toFixed(1)}%`;
     
     chip.innerHTML = `
-      <i data-lucide="star" style="width: 12px; height: 12px; fill: #ffc107; color: #ffc107;"></i>
+      <i data-lucide="star"></i>
       <span>${item.name}</span>
       <span class="chip-pct">${pctText}</span>
     `;

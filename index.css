@@ -1678,31 +1678,36 @@ body {
 .btn-favorite {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.65); /* Brighter default color for better visibility on mobile screens */
   cursor: pointer;
-  padding: 4px;
+  padding: 8px; /* Larger tap target on mobile screens */
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 50%;
-  margin-top: -2px;
-  margin-right: -2px;
+  margin-top: -6px;
+  margin-right: -6px;
+  z-index: 5;
+  position: relative;
 }
 
 .btn-favorite:hover {
   color: #ffc107;
-  background: rgba(255, 193, 7, 0.08);
+  background: rgba(255, 193, 7, 0.1);
   transform: scale(1.15);
 }
 
-.btn-favorite i {
+.btn-favorite i,
+.btn-favorite svg {
   width: 18px;
   height: 18px;
   transition: all 0.25s ease;
+  display: block;
 }
 
-.btn-favorite i.fav-active {
+.btn-favorite i.fav-active,
+.btn-favorite svg.fav-active {
   color: #ffc107;
   fill: #ffc107;
   filter: drop-shadow(0 0 5px rgba(255, 193, 7, 0.5));
@@ -1803,6 +1808,15 @@ body {
   background: rgba(255, 255, 255, 0.08);
   padding: 0.05rem 0.3rem;
   border-radius: 4px;
+}
+
+.quick-chip i,
+.quick-chip svg {
+  width: 12px;
+  height: 12px;
+  fill: #ffc107;
+  color: #ffc107;
+  flex-shrink: 0;
 }
 
 
