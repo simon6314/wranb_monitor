@@ -1628,3 +1628,40 @@ body {
   border-color: transparent;
   box-shadow: 0 4px 12px rgba(var(--primary), 0.3);
 }
+
+/* ==========================================================================
+   Compared-to-Yesterday Statistics Differences
+   ========================================================================== */
+.diff-up {
+  color: hsl(var(--critical)) !important; /* Red for up/increase (Taiwan standard) */
+  font-weight: 700;
+}
+
+.diff-down {
+  color: hsl(var(--safe)) !important; /* Green for down/decrease (Taiwan standard) */
+  font-weight: 700;
+}
+
+.diff-flat {
+  color: hsl(var(--text-muted)) !important;
+}
+
+.metric-row.comparison-row {
+  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.modal-diff-pill {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-left: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  vertical-align: middle;
+}

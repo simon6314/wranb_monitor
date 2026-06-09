@@ -229,19 +229,40 @@ const $$ = (selector) => document.querySelectorAll(selector);
 
 // API Endpoints
 const API_URL_FHY_REALTIME = "https://fhy.wra.gov.tw/OpenApiv3/v2/Reservoir/Info/RealTime";
+const API_URL_FHY_DAILY = "https://fhy.wra.gov.tw/OpenApiv3/v2/Reservoir/Daily";
 
 // Fetch & Process Data
 async function loadDashboardData() {
   showLoading();
   
   try {
-    const response = await fetch(API_URL_FHY_REALTIME);
-    if (!response.ok) {
+    const [realtimeRes, dailyRes] = await Promise.all([
+      fetch(API_URL_FHY_REALTIME),
+      fetch(API_URL_FHY_DAILY).catch(err => {
+        console.warn("Failed fetching daily reservoir API:", err);
+        return null;
+      })
+    ]);
+
+    if (!realtimeRes.ok) {
       throw new Error("無法連接到水利署 API");
     }
     
-    const result = await response.json();
-    const dataList = result.Data || [];
+    const realtimeResult = await realtimeRes.json();
+    const dataList = realtimeResult.Data || [];
+    
+    let dailyMap = {};
+    if (dailyRes && dailyRes.ok) {
+      try {
+        const dailyResult = await dailyRes.json();
+        const dailyList = dailyResult.Data || [];
+        dailyList.forEach(day => {
+          dailyMap[day.StationNo] = day;
+        });
+      } catch (err) {
+        console.warn("Failed parsing daily reservoir data:", err);
+      }
+    }
     
     // Process and filter for major reservoirs
     const combined = [];
@@ -259,6 +280,47 @@ async function loadDashboardData() {
       const rainfall = item.AccumulatedRainfall !== null ? parseFloat(item.AccumulatedRainfall) : 0;
       const inflow = item.Inflow !== null ? parseFloat(item.Inflow) : 0;
       const outflow = item.Outflow !== null ? parseFloat(item.Outflow) : 0;
+
+      // Calculate differences compared to yesterday
+      let storageDiff = null;
+      let percentageDiff = null;
+      let waterLevelDiff = null;
+
+      const daily = dailyMap[rid];
+      if (daily) {
+        const yesterdayStorage = daily.EffectiveStorage !== null ? parseFloat(daily.EffectiveStorage) : null;
+        const yesterdayPercentage = daily.PercentageOfStorage !== null ? parseFloat(daily.PercentageOfStorage) : null;
+        const fullHeight = daily.FullWaterHeight !== null ? parseFloat(daily.FullWaterHeight) : null;
+        const deadHeight = daily.DeadWaterHeight !== null ? parseFloat(daily.DeadWaterHeight) : null;
+
+        if (yesterdayStorage !== null && storage > 0) {
+          storageDiff = storage - yesterdayStorage;
+        }
+        if (yesterdayPercentage !== null && percentage > 0) {
+          percentageDiff = percentage - yesterdayPercentage;
+        }
+
+        // Calibrated non-linear height difference estimation (power-law curve fitting)
+        if (waterLevel > 0 && yesterdayPercentage !== null && fullHeight !== null && deadHeight !== null && fullHeight > deadHeight) {
+          if (waterLevel > deadHeight && percentage > 0 && yesterdayPercentage > 0) {
+            try {
+              const ratioH = (waterLevel - deadHeight) / (fullHeight - deadHeight);
+              const ratioP = percentage / 100.0;
+              if (ratioH < 1.0 && ratioH > 0 && ratioP < 1.0 && ratioP > 0) {
+                const beta = Math.log(ratioP) / Math.log(ratioH);
+                const estYesterdayHeight = deadHeight + (fullHeight - deadHeight) * Math.pow(yesterdayPercentage / 100.0, 1.0 / beta);
+                waterLevelDiff = waterLevel - estYesterdayHeight;
+              } else {
+                waterLevelDiff = ((percentage - yesterdayPercentage) * (fullHeight - deadHeight)) / 100.0;
+              }
+            } catch (e) {
+              waterLevelDiff = ((percentage - yesterdayPercentage) * (fullHeight - deadHeight)) / 100.0;
+            }
+          } else {
+            waterLevelDiff = ((percentage - yesterdayPercentage) * (fullHeight - deadHeight)) / 100.0;
+          }
+        }
+      }
       
       combined.push({
         id: rid,
@@ -282,7 +344,12 @@ async function loadDashboardData() {
         rainfall: rainfall,
         inflow: inflow,
         outflow: outflow,
-        updateTime: item.Time || ""
+        updateTime: item.Time || "",
+
+        // Comparison metrics
+        storageDiff: storageDiff,
+        percentageDiff: percentageDiff,
+        waterLevelDiff: waterLevelDiff
       });
     });
 
@@ -310,7 +377,10 @@ async function loadDashboardData() {
         rainfall: null,
         inflow: null,
         outflow: null,
-        updateTime: ""
+        updateTime: "",
+        storageDiff: null,
+        percentageDiff: null,
+        waterLevelDiff: null
       });
     });
     
@@ -437,6 +507,42 @@ function renderReservoirsGrid() {
           <span class="gauge-percentage">${item.percentage.toFixed(1)}%</span>
         </div>`;
 
+    let compHTML = "";
+    if (!isFlood) {
+      if (item.waterLevelDiff !== null || item.storageDiff !== null || item.percentageDiff !== null) {
+        const isUp = item.percentageDiff > 0 || item.storageDiff > 0 || item.waterLevelDiff > 0;
+        const isDown = item.percentageDiff < 0 || item.storageDiff < 0 || item.waterLevelDiff < 0;
+        const diffClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
+        const diffArrow = isUp ? '▲' : (isDown ? '▼' : '-');
+        
+        const hDiff = item.waterLevelDiff !== null ? `${Math.abs(item.waterLevelDiff).toFixed(2)} m` : '';
+        const pDiff = item.percentageDiff !== null ? `${item.percentageDiff > 0 ? '+' : ''}${item.percentageDiff.toFixed(1)}%` : '';
+        const sDiff = item.storageDiff !== null ? `${item.storageDiff > 0 ? '+' : ''}${item.storageDiff.toFixed(1)} 萬 m³` : '';
+        
+        let diffText = "";
+        if (hDiff) {
+          diffText += `${diffArrow} ${hDiff}`;
+        }
+        if (pDiff || sDiff) {
+          diffText += ` (${pDiff}${pDiff && sDiff ? ' | ' : ''}${sDiff})`;
+        }
+        
+        compHTML = `
+          <div class="metric-row comparison-row">
+            <span class="metric-label">昨日相比</span>
+            <span class="metric-value ${diffClass}">${diffText}</span>
+          </div>
+        `;
+      } else {
+        compHTML = `
+          <div class="metric-row comparison-row">
+            <span class="metric-label">昨日相比</span>
+            <span class="metric-value diff-flat">-</span>
+          </div>
+        `;
+      }
+    }
+
     const metricsHTML = isFlood
       ? `<div class="card-metrics flood-metrics">
           <div class="metric-row flood-desc">
@@ -465,6 +571,7 @@ function renderReservoirsGrid() {
             <span class="metric-label">水位高程</span>
             <span class="metric-value">${item.waterLevel.toFixed(2)} m</span>
           </div>
+          ${compHTML}
         </div>`;
     
     card.innerHTML = `
@@ -707,9 +814,47 @@ window.openDetailsModal = function(reservoirId, focusVideo = false) {
   $("#modal-location").innerText = item.location;
   $("#modal-percentage").innerText = isFlood ? "分洪道" : `${item.percentage.toFixed(1)}%`;
 
-  $("#modal-water-level").innerText    = item.waterLevel    != null ? `${item.waterLevel.toFixed(2)} m`      : "N/A";
+  // Water level height with calibrated diff pill
+  if (item.waterLevel != null) {
+    let html = `${item.waterLevel.toFixed(2)} m`;
+    if (item.waterLevelDiff !== null) {
+      const isUp = item.waterLevelDiff > 0;
+      const isDown = item.waterLevelDiff < 0;
+      const diffClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
+      const diffArrow = isUp ? '▲' : (isDown ? '▼' : '-');
+      const diffVal = Math.abs(item.waterLevelDiff).toFixed(2);
+      html += ` <span class="modal-diff-pill ${diffClass}">${diffArrow} ${diffVal} m</span>`;
+    }
+    $("#modal-water-level").innerHTML = html;
+  } else {
+    $("#modal-water-level").innerHTML = "N/A";
+  }
+
   $("#modal-total-capacity").innerText = item.totalCapacity != null ? `${item.totalCapacity.toFixed(1)} 萬 m³` : "N/A";
-  $("#modal-current-storage").innerText= item.currentStorage!= null ? `${item.currentStorage.toFixed(1)} 萬 m³`: "N/A";
+
+  // Current storage with volume and percentage diff pill
+  if (item.currentStorage != null) {
+    let html = `${item.currentStorage.toFixed(1)} 萬 m³`;
+    if (item.storageDiff !== null || item.percentageDiff !== null) {
+      const isUp = item.storageDiff > 0 || item.percentageDiff > 0;
+      const isDown = item.storageDiff < 0 || item.percentageDiff < 0;
+      const diffClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
+      const diffArrow = isUp ? '▲' : (isDown ? '▼' : '-');
+      
+      const sVal = item.storageDiff !== null ? `${Math.abs(item.storageDiff).toFixed(1)} 萬 m³` : '';
+      const pVal = item.percentageDiff !== null ? `${item.percentageDiff > 0 ? '+' : ''}${item.percentageDiff.toFixed(1)}%` : '';
+      
+      let pillText = `${diffArrow} ${sVal}`;
+      if (pVal) {
+        pillText += ` (${pVal})`;
+      }
+      
+      html += ` <span class="modal-diff-pill ${diffClass}">${pillText}</span>`;
+    }
+    $("#modal-current-storage").innerHTML = html;
+  } else {
+    $("#modal-current-storage").innerHTML = "N/A";
+  }
   $("#modal-rainfall").innerText = item.rainfall  != null && item.rainfall  > 0 ? `${item.rainfall.toFixed(1)} mm`   : (item.rainfall  != null ? "0 mm"  : "N/A");
   $("#modal-inflow").innerText   = item.inflow    != null && item.inflow    > 0 ? `${item.inflow.toFixed(2)} cms`    : (item.inflow    != null ? "0 cms" : "N/A");
   $("#modal-outflow").innerText  = item.outflow   != null && item.outflow   > 0 ? `${item.outflow.toFixed(2)} cms`   : (item.outflow   != null ? "0 cms" : "N/A");
