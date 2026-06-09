@@ -124,19 +124,24 @@
         
         <!-- Left Side: Live Feed -->
         <div class="modal-video-container">
-          <div class="video-header">
-            <span class="live-badge" id="modal-live-badge"><span class="pulse-dot"></span>LIVE</span>
-            <h3 id="modal-title">石門水庫 即時影像</h3>
+          <!-- Top bar: LIVE badge + title + camera selector (never covers image) -->
+          <div class="video-top-bar">
+            <div class="video-top-bar-left">
+              <span class="live-badge" id="modal-live-badge"><span class="pulse-dot"></span>LIVE</span>
+              <h3 id="modal-title">石門水庫 即時影像</h3>
+            </div>
+            <div class="cctv-cam-selector-bar" id="cctv-cam-selector-bar"></div>
           </div>
-          
+
+          <!-- Image area -->
           <div class="video-iframe-wrapper">
-            <!-- Live / CCTV Feed -->
             <div class="video-panel active" id="panel-live">
-              <div class="video-iframe-wrapper-inner" id="video-wrapper">
-                <!-- Iframe or static placeholder goes here -->
-              </div>
+              <div class="video-iframe-wrapper-inner" id="video-wrapper"></div>
             </div>
           </div>
+
+          <!-- Bottom status bar (never covers image) -->
+          <div class="cctv-status-bar" id="cctv-status-bar"></div>
         </div>
         
         <!-- Right Side: Detailed Dashboard -->
