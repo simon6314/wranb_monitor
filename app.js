@@ -303,7 +303,7 @@ function renderFavoritesQuickBar() {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
-// Helper to parse Daily Time (e.g. "2026-06-09T00:00:00" -> "6/9") without timezone offset issues
+// Helper to parse Daily Time (e.g. "2026-06-09T00:00:00" -> "6/9 00:00") without timezone offset issues
 function parseDailyDate(timeStr) {
   if (!timeStr) return "";
   try {
@@ -327,6 +327,10 @@ function parseDailyDate(timeStr) {
   return "";
 }
 
+// Fill in your deployed Cloudflare Worker URL to get exact 00:00 today's baseline data
+// e.g. "https://aqualens-baseline.your-subdomain.workers.dev"
+const CLOUDFLARE_WORKER_URL = "https://aqualens-baseline.simon6314.workers.dev"; 
+
 // API Endpoints
 const API_URL_FHY_REALTIME = "https://fhy.wra.gov.tw/OpenApiv3/v2/Reservoir/Info/RealTime";
 const API_URL_FHY_DAILY = "https://fhy.wra.gov.tw/OpenApiv3/v2/Reservoir/Daily";
@@ -336,10 +340,18 @@ async function loadDashboardData() {
   showLoading();
   
   try {
-    const [realtimeRes, dailyRes] = await Promise.all([
+    let baselineUrl = API_URL_FHY_DAILY;
+    let isWorkerBaseline = false;
+    
+    if (CLOUDFLARE_WORKER_URL) {
+      baselineUrl = `${CLOUDFLARE_WORKER_URL}/api/baseline`;
+      isWorkerBaseline = true;
+    }
+
+    const [realtimeRes, baselineRes] = await Promise.all([
       fetch(API_URL_FHY_REALTIME),
-      fetch(API_URL_FHY_DAILY).catch(err => {
-        console.warn("Failed fetching daily reservoir API:", err);
+      fetch(baselineUrl).catch(err => {
+        console.warn("Failed fetching baseline reservoir API:", err);
         return null;
       })
     ]);
@@ -352,15 +364,50 @@ async function loadDashboardData() {
     const dataList = realtimeResult.Data || [];
     
     let dailyMap = {};
-    if (dailyRes && dailyRes.ok) {
+    let parsedBaseline = false;
+    
+    if (baselineRes && baselineRes.ok) {
       try {
-        const dailyResult = await dailyRes.json();
-        const dailyList = dailyResult.Data || [];
-        dailyList.forEach(day => {
-          dailyMap[day.StationNo] = day;
-        });
+        const baselineResult = await baselineRes.json();
+        if (isWorkerBaseline) {
+          // Worker format: { StationNo: { EffectiveStorage, WaterHeight, PercentageOfStorage, Time } }
+          Object.entries(baselineResult).forEach(([stationNo, item]) => {
+            dailyMap[stationNo] = {
+              StationNo: stationNo,
+              Time: item.Time,
+              EffectiveStorage: item.EffectiveStorage,
+              PercentageOfStorage: item.PercentageOfStorage,
+              WaterHeight: item.WaterHeight
+            };
+          });
+          parsedBaseline = true;
+        } else {
+          // Standard WRA Daily format
+          const dailyList = baselineResult.Data || [];
+          dailyList.forEach(day => {
+            dailyMap[day.StationNo] = day;
+          });
+          parsedBaseline = true;
+        }
       } catch (err) {
-        console.warn("Failed parsing daily reservoir data:", err);
+        console.warn("Failed parsing baseline reservoir data:", err);
+      }
+    }
+
+    // Dynamic Fallback: if Cloudflare Worker failed or returned invalid data, query WRA Daily API
+    if (isWorkerBaseline && !parsedBaseline) {
+      console.log("Worker baseline failed. Trying fallback to WRA Daily API...");
+      try {
+        const fallbackRes = await fetch(API_URL_FHY_DAILY);
+        if (fallbackRes.ok) {
+          const fallbackResult = await fallbackRes.json();
+          const dailyList = fallbackResult.Data || [];
+          dailyList.forEach(day => {
+            dailyMap[day.StationNo] = day;
+          });
+        }
+      } catch (fbErr) {
+        console.warn("Fallback WRA Daily API also failed:", fbErr);
       }
     }
     
@@ -392,6 +439,7 @@ async function loadDashboardData() {
         dailyDateText = parseDailyDate(daily.Time);
         const yesterdayStorage = daily.EffectiveStorage !== null ? parseFloat(daily.EffectiveStorage) : null;
         const yesterdayPercentage = daily.PercentageOfStorage !== null ? parseFloat(daily.PercentageOfStorage) : null;
+        const yesterdayHeight = daily.WaterHeight !== null && daily.WaterHeight !== undefined ? parseFloat(daily.WaterHeight) : null;
         const fullHeight = daily.FullWaterHeight !== null ? parseFloat(daily.FullWaterHeight) : null;
         const deadHeight = daily.DeadWaterHeight !== null ? parseFloat(daily.DeadWaterHeight) : null;
 
@@ -402,8 +450,12 @@ async function loadDashboardData() {
           percentageDiff = percentage - yesterdayPercentage;
         }
 
-        // Calibrated non-linear height difference estimation (power-law curve fitting)
-        if (waterLevel > 0 && yesterdayPercentage !== null && fullHeight !== null && deadHeight !== null && fullHeight > deadHeight) {
+        // Calculate Water Level Difference
+        if (yesterdayHeight !== null && yesterdayHeight > 0) {
+          // Direct difference if using Cloudflare Worker baseline
+          waterLevelDiff = waterLevel - yesterdayHeight;
+        } else if (waterLevel > 0 && yesterdayPercentage !== null && fullHeight !== null && deadHeight !== null && fullHeight > deadHeight) {
+          // Calibrated non-linear height difference estimation (power-law curve fitting) as fallback for Daily API
           if (waterLevel > deadHeight && percentage > 0 && yesterdayPercentage > 0) {
             try {
               const ratioH = (waterLevel - deadHeight) / (fullHeight - deadHeight);
