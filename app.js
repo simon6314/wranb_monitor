@@ -303,6 +303,18 @@ function renderFavoritesQuickBar() {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
+// Helper to parse Daily Time (e.g. "2026-06-09T00:00:00" -> "6/9") without timezone offset issues
+function parseDailyDate(timeStr) {
+  if (!timeStr) return "";
+  const parts = timeStr.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    return `${month}/${day}`;
+  }
+  return "";
+}
+
 // API Endpoints
 const API_URL_FHY_REALTIME = "https://fhy.wra.gov.tw/OpenApiv3/v2/Reservoir/Info/RealTime";
 const API_URL_FHY_DAILY = "https://fhy.wra.gov.tw/OpenApiv3/v2/Reservoir/Daily";
@@ -361,9 +373,11 @@ async function loadDashboardData() {
       let storageDiff = null;
       let percentageDiff = null;
       let waterLevelDiff = null;
+      let dailyDateText = "";
 
       const daily = dailyMap[rid];
       if (daily) {
+        dailyDateText = parseDailyDate(daily.Time);
         const yesterdayStorage = daily.EffectiveStorage !== null ? parseFloat(daily.EffectiveStorage) : null;
         const yesterdayPercentage = daily.PercentageOfStorage !== null ? parseFloat(daily.PercentageOfStorage) : null;
         const fullHeight = daily.FullWaterHeight !== null ? parseFloat(daily.FullWaterHeight) : null;
@@ -425,7 +439,8 @@ async function loadDashboardData() {
         // Comparison metrics
         storageDiff: storageDiff,
         percentageDiff: percentageDiff,
-        waterLevelDiff: waterLevelDiff
+        waterLevelDiff: waterLevelDiff,
+        dailyDateText: dailyDateText
       });
     });
 
@@ -588,6 +603,7 @@ function renderReservoirsGrid() {
 
     let compHTML = "";
     if (!isFlood) {
+      const dateLabel = item.dailyDateText ? `與 ${item.dailyDateText} 相比` : '昨日相比';
       if (item.waterLevelDiff !== null || item.storageDiff !== null || item.percentageDiff !== null) {
         const isUp = item.percentageDiff > 0 || item.storageDiff > 0 || item.waterLevelDiff > 0;
         const isDown = item.percentageDiff < 0 || item.storageDiff < 0 || item.waterLevelDiff < 0;
@@ -608,14 +624,14 @@ function renderReservoirsGrid() {
         
         compHTML = `
           <div class="metric-row comparison-row">
-            <span class="metric-label">昨日相比</span>
+            <span class="metric-label">${dateLabel}</span>
             <span class="metric-value ${diffClass}">${diffText}</span>
           </div>
         `;
       } else {
         compHTML = `
           <div class="metric-row comparison-row">
-            <span class="metric-label">昨日相比</span>
+            <span class="metric-label">${dateLabel}</span>
             <span class="metric-value diff-flat">-</span>
           </div>
         `;
@@ -1053,6 +1069,17 @@ window.openDetailsModal = function(reservoirId, focusVideo = false) {
   $("#modal-region").innerText = getRegionChineseName(item.region);
   $("#modal-region").className = `details-region ${statusType}`;
   $("#modal-location").innerText = item.location;
+  
+  const benchmarkEl = $("#modal-benchmark");
+  if (benchmarkEl) {
+    if (item.dailyDateText) {
+      benchmarkEl.innerText = `昨統計基準：${item.dailyDateText}`;
+      benchmarkEl.style.display = "inline-block";
+    } else {
+      benchmarkEl.style.display = "none";
+    }
+  }
+  
   $("#modal-percentage").innerText = isFlood ? "分洪道" : `${item.percentage.toFixed(1)}%`;
 
   // Water Level with diff pill
@@ -1063,7 +1090,7 @@ window.openDetailsModal = function(reservoirId, focusVideo = false) {
       const isDown = item.waterLevelDiff < 0;
       const pillClass = isUp ? 'diff-up' : (isDown ? 'diff-down' : 'diff-flat');
       const pillArrow = isUp ? '▲' : (isDown ? '▼' : '-');
-      wlText += ` <span class="modal-diff-pill ${pillClass}">${pillArrow} ${Math.abs(item.waterLevelDiff).toFixed(2)} m</span>`;
+      wlText += ` <span class="modal-diff-pill ${pillClass}" title="與 ${item.dailyDateText} 相比">${pillArrow} ${Math.abs(item.waterLevelDiff).toFixed(2)} m</span>`;
     }
     $("#modal-water-level").innerHTML = wlText;
   } else {
@@ -1090,7 +1117,7 @@ window.openDetailsModal = function(reservoirId, focusVideo = false) {
         diffDetails = pDiffText || sDiffText;
       }
       
-      csText += ` <span class="modal-diff-pill ${pillClass}">${pillArrow} ${diffDetails}</span>`;
+      csText += ` <span class="modal-diff-pill ${pillClass}" title="與 ${item.dailyDateText} 相比">${pillArrow} ${diffDetails}</span>`;
     }
     $("#modal-current-storage").innerHTML = csText;
   } else {
