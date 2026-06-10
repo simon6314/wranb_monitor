@@ -306,11 +306,23 @@ const $$ = (selector) => document.querySelectorAll(selector);
 // Helper to parse Daily Time (e.g. "2026-06-09T00:00:00" -> "6/9") without timezone offset issues
 function parseDailyDate(timeStr) {
   if (!timeStr) return "";
-  const parts = timeStr.split('T')[0].split('-');
-  if (parts.length === 3) {
-    const month = parseInt(parts[1], 10);
-    const day = parseInt(parts[2], 10);
-    return `${month}/${day}`;
+  try {
+    const parts = timeStr.split('T');
+    const dateParts = parts[0].split('-');
+    if (dateParts.length === 3) {
+      const month = parseInt(dateParts[1], 10);
+      const day = parseInt(dateParts[2], 10);
+      let timePart = "";
+      if (parts[1]) {
+        const tParts = parts[1].split(':');
+        if (tParts.length >= 2) {
+          timePart = ` ${tParts[0]}:${tParts[1]}`;
+        }
+      }
+      return `${month}/${day}${timePart}`;
+    }
+  } catch (e) {
+    console.error("Error parsing daily date:", e);
   }
   return "";
 }
