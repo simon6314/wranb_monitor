@@ -349,7 +349,7 @@ async function loadDashboardData() {
     }
 
     const [realtimeRes, baselineRes] = await Promise.all([
-      fetch(API_URL_FHY_REALTIME),
+      fetch(API_URL_FHY_REALTIME, { headers: { "apikey": "d6dd3cd4-493f-43a3-92b1-8b2db217da96" } }),
       fetch(baselineUrl).catch(err => {
         console.warn("Failed fetching baseline reservoir API:", err);
         return null;
@@ -398,7 +398,7 @@ async function loadDashboardData() {
     if (isWorkerBaseline && !parsedBaseline) {
       console.log("Worker baseline failed. Trying fallback to WRA Daily API...");
       try {
-        const fallbackRes = await fetch(API_URL_FHY_DAILY);
+        const fallbackRes = await fetch(API_URL_FHY_DAILY, { headers: { "apikey": "d6dd3cd4-493f-43a3-92b1-8b2db217da96" } });
         if (fallbackRes.ok) {
           const fallbackResult = await fallbackRes.json();
           const dailyList = fallbackResult.Data || [];
