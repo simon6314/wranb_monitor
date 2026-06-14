@@ -846,6 +846,7 @@ async function loadLiveFeed(item) {
       
       container.appendChild(img);
       videoWrapper.appendChild(container);
+      initPinchZoom(img);
 
       const stationIds = item.cctvIds;
       let activeStationIdx = 0;
@@ -963,6 +964,7 @@ async function loadLiveFeed(item) {
           
           container.appendChild(img);
           videoWrapper.appendChild(container);
+          initPinchZoom(img);
           
           let activeCamIdx = 0;
           let loopInterval = null;
@@ -1042,6 +1044,7 @@ async function loadLiveFeed(item) {
         
         container.appendChild(img);
         videoWrapper.appendChild(container);
+        initPinchZoom(img);
         
         const fallbackIds = item.cctvIds && item.cctvIds.length > 0 ? item.cctvIds : [item.cctvId || "6946"];
         let activeCamIdx = 0;
@@ -1303,3 +1306,179 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   loadDashboardData();
 });
+
+/**
+ * Initialize Pinch-to-Zoom & Pan gestures on CCTV Live Image
+ * Supports dual-touch pinch zoom, single-touch pan, double-tap zoom on mobile,
+ * and mouse-wheel zoom / mouse-drag pan on desktop.
+ */
+function initPinchZoom(img) {
+  if (!img) return;
+
+  let scale = 1;
+  let startScale = 1;
+  let startDistance = 0;
+  
+  let posX = 0;
+  let posY = 0;
+  
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let isDragging = false;
+  
+  let lastTapTime = 0;
+
+  // Reset transforms helper
+  function updateTransform() {
+    // Constrain positions so it doesn't pan out of boundaries
+    if (scale <= 1) {
+      scale = 1;
+      posX = 0;
+      posY = 0;
+    } else {
+      // Max bounds based on scale to prevent dragging past image edges
+      const maxW = (scale - 1) * (img.clientWidth || 640) / 2;
+      const maxH = (scale - 1) * (img.clientHeight || 480) / 2;
+      posX = Math.min(Math.max(posX, -maxW), maxW);
+      posY = Math.min(Math.max(posY, -maxH), maxH);
+    }
+    
+    img.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+    img.style.transition = isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+  }
+
+  // Double tap to toggle zoom level between 1x and 2.5x
+  img.addEventListener('touchend', (e) => {
+    if (e.touches.length > 0) return; // Only trigger if all fingers lifted
+    
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    if (now - lastTapTime < DOUBLE_TAP_DELAY) {
+      if (scale > 1) {
+        scale = 1;
+        posX = 0;
+        posY = 0;
+      } else {
+        scale = 2.5;
+        // Center zoom relative to the tap position if possible
+        const rect = img.getBoundingClientRect();
+        const tapX = e.changedTouches[0].clientX - rect.left - rect.width / 2;
+        const tapY = e.changedTouches[0].clientY - rect.top - rect.height / 2;
+        posX = -tapX * 1.5;
+        posY = -tapY * 1.5;
+      }
+      isDragging = false;
+      updateTransform();
+      e.preventDefault();
+    }
+    lastTapTime = now;
+  });
+
+  // Touch start
+  img.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    if (e.touches.length === 2) {
+      // Pinch gesture
+      startDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      startScale = scale;
+    } else if (e.touches.length === 1) {
+      // Drag/Pan gesture
+      touchStartX = e.touches[0].clientX - posX;
+      touchStartY = e.touches[0].clientY - posY;
+    }
+  }, { passive: true });
+
+  // Touch move
+  img.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    
+    if (e.touches.length === 2) {
+      e.preventDefault(); // Stop mobile browser zoom/pan on page
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (startDistance > 0) {
+        scale = Math.min(Math.max(startScale * (dist / startDistance), 1), 4);
+        updateTransform();
+      }
+    } else if (e.touches.length === 1 && scale > 1) {
+      e.preventDefault(); // Stop mobile page scroll when panning
+      posX = e.touches[0].clientX - touchStartX;
+      posY = e.touches[0].clientY - touchStartY;
+      updateTransform();
+    }
+  }, { passive: false });
+
+  // Touch end
+  img.addEventListener('touchend', () => {
+    isDragging = false;
+    updateTransform();
+  });
+  
+  img.addEventListener('touchcancel', () => {
+    isDragging = false;
+    updateTransform();
+  });
+
+  // Desktop Mouse Wheel support (Zoom)
+  img.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = 0.15;
+    const direction = e.deltaY < 0 ? 1 : -1;
+    
+    const prevScale = scale;
+    scale = Math.min(Math.max(scale + direction * zoomFactor, 1), 4);
+    
+    if (scale > 1) {
+      // Zoom into cursor position
+      const rect = img.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left - rect.width / 2;
+      const mouseY = e.clientY - rect.top - rect.height / 2;
+      
+      posX -= mouseX * (scale - prevScale) / scale;
+      posY -= mouseY * (scale - prevScale) / scale;
+    }
+    
+    isDragging = false;
+    updateTransform();
+  }, { passive: false });
+
+  // Desktop Mouse Drag to Pan support
+  let mouseStartX = 0;
+  let mouseStartY = 0;
+  let isMouseDown = false;
+
+  img.addEventListener('mousedown', (e) => {
+    if (scale <= 1) return;
+    e.preventDefault();
+    isMouseDown = true;
+    isDragging = true;
+    mouseStartX = e.clientX - posX;
+    mouseStartY = e.clientY - posY;
+    img.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isMouseDown) return;
+    posX = e.clientX - mouseStartX;
+    posY = e.clientY - mouseStartY;
+    updateTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isMouseDown) {
+      isMouseDown = false;
+      isDragging = false;
+      img.style.cursor = scale > 1 ? 'grab' : 'default';
+      updateTransform();
+    }
+  });
+  
+  // Set styling for smooth transformations
+  img.style.transformOrigin = 'center center';
+  img.style.cursor = scale > 1 ? 'grab' : 'default';
+}
