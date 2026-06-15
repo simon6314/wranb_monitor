@@ -119,6 +119,7 @@ const RESERVOIRS_METADATA = {
     cctvStationId: "106818",
     cctvId: "106818",
     cctvIds: ["106818", "106783"],
+    isMultiStation: true,
     description: "兼具水力發電與國際級觀光價值的水庫，湖光山色世界聞名。",
     bgImage: "https://images.unsplash.com/photo-1527668752948-184e7745c6dd?w=800&auto=format&fit=crop"
   },
@@ -487,6 +488,7 @@ async function loadDashboardData() {
         cctvIds: meta.cctvIds || [],
         cctvSourceId: meta.cctvSourceId || "",
         cctvStationId: meta.cctvStationId || "",
+        isMultiStation: meta.isMultiStation || false,
         description: meta.description || "提供即時水庫蓄水量及水位高度資訊。",
         bgImage: meta.bgImage || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop",
         
@@ -522,6 +524,7 @@ async function loadDashboardData() {
         cctvIds: meta.cctvIds || [],
         cctvSourceId: meta.cctvSourceId || "",
         cctvStationId: meta.cctvStationId || "",
+        isMultiStation: meta.isMultiStation || false,
         description: meta.description || "",
         bgImage: meta.bgImage || "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&auto=format&fit=crop",
         isFloodFacility: true,
@@ -832,8 +835,8 @@ async function loadLiveFeed(item) {
 
     const sourceId = item.cctvSourceId || "21";
     
-    // Determine if we are in Multi-Station Mode (like Sun Moon Lake where cctvStationId is inside cctvIds)
-    const isMultiStationMode = item.cctvIds && item.cctvIds.length > 1 && item.cctvIds.includes(item.cctvStationId);
+    // Determine if we are in Multi-Station Mode (like Sun Moon Lake)
+    const isMultiStationMode = item.isMultiStation === true;
     
     if (isMultiStationMode) {
       // Setup CCTV container
